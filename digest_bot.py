@@ -1,7 +1,6 @@
 import os
 import json
 import requests
-import feedparser
 from datetime import datetime
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -27,30 +26,32 @@ def send_message(text):
     except Exception as e:
         print(f"Error: {e}")
 
-def get_awwwards_rss():
+def get_godly():
     items = []
     try:
-        feed = feedparser.parse("https://www.awwwards.com/website-rss/")
-        for entry in feed.entries[:3]:
+        r = requests.get("https://godly.website/api/v1/posts?sort=newest&limit=5")
+        data = r.json()
+        for post in data.get("posts", [])[:3]:
             items.append({
-                "title": entry.title,
-                "link": entry.link,
-                "source": "Awwwards",
+                "title": post.get("title", "Untitled"),
+                "link": post.get("url", ""),
+                "source": "Godly",
                 "niche": "General"
             })
     except: pass
     return items
 
-def get_siteinspire_rss():
+def get_landbook():
     items = []
     try:
-        feed = feedparser.parse("https://www.siteinspire.com/rss/")
-        for entry in feed.entries[:3]:
+        r = requests.get("https://land-book.com/api/gallery?page=1&per_page=5")
+        data = r.json()
+        for project in data.get("data", [])[:2]:
             items.append({
-                "title": entry.title,
-                "link": entry.link,
-                "source": "Siteinspire",
-                "niche": "Portfolio"
+                "title": project.get("name", "Untitled"),
+                "link": project.get("website_url", ""),
+                "source": "Land-book",
+                "niche": "Landing"
             })
     except: pass
     return items
@@ -58,12 +59,11 @@ def get_siteinspire_rss():
 def main():
     seen = load_seen()
     digest = []
-    niches_used = set()
     
-    all_sources = get_awwwards_rss() + get_siteinspire_rss()
+    all_sources = get_godly() + get_landbook()
     
     for item in all_sources:
-        if item['link'] not in seen and len(digest) < 5:
+        if item['link'] and item['link'] not in seen and len(digest) < 5:
             seen.add(item['link'])
             digest.append(item)
             
