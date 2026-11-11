@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import xml.etree.ElementTree as ET
 from datetime import datetime
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -21,38 +22,21 @@ def send_message(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     data = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
     try:
-        r = requests.post(url, data=data)
+        r = requests.post(url, data=data, timeout=10)
         print(f"Telegram status: {r.status_code}")
     except Exception as e:
         print(f"Error: {e}")
 
-def get_godly():
+def parse_rss(url, source_name, niche="General", limit=3):
     items = []
     try:
-        r = requests.get("https://godly.website/api/v1/posts?sort=newest&limit=5")
-        data = r.json()
-        for post in data.get("posts", [])[:3]:
-            items.append({
-                "title": post.get("title", "Untitled"),
-                "link": post.get("url", ""),
-                "source": "Godly",
-                "niche": "General"
-            })
-    except: pass
-    return items
-
-def get_landbook():
-    items = []
-    try:
-        r = requests.get("https://land-book.com/api/gallery?page=1&per_page=5")
-        data = r.json()
-        for project in data.get("data", [])[:2]:
-            items.append({
-                "title": project.get("name", "Untitled"),
-                "link": project.get("website_url", ""),
-                "source": "Land-book",
-                "niche": "Landing"
-            })
+        r = requests.get(url, timeout=10)
+        root = ET.fromstring(r.text)
+        for item in root.findall('.//item')[:limit]:
+            title = item.find('title').text if item.find('title') is not None else "Untitled"
+            link = item.find('link').text if item.find('link') is not None else ""
+            if link:
+                items.append({"title": title, "link": link, "source": source_name, "niche": niche})
     except: pass
     return items
 
@@ -60,10 +44,19 @@ def main():
     seen = load_seen()
     digest = []
     
-    all_sources = get_godly() + get_landbook()
+    # Проверенные RSS-источники
+    sources = [
+        ("https://www.cssdesignawards.com/rss/", "CSSDA", "Award"),
+        ("https://bestwebsite.gallery/feed/", "BWG", "Gallery"),
+        ("https://www.awwwards.com/website-rss/", "Awwwards", "SOTD")
+    ]
     
-    for item in all_sources:
-        if item['link'] and item['link'] not in seen and len(digest) < 5:
+    all_items = []
+    for url, name, niche in sources:
+        all_items.extend(parse_rss(url, name, niche, limit=2))
+    
+    for item in all_items:
+        if item['link'] not in seen and len(digest) < 5:
             seen.add(item['link'])
             digest.append(item)
             
