@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-from bs4 import BeautifulSoup
+import feedparser
 from datetime import datetime
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -23,49 +23,35 @@ def send_message(text):
     data = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
     try:
         r = requests.post(url, data=data)
-        print(f"Status: {r.status_code}")
+        print(f"Telegram status: {r.status_code}")
     except Exception as e:
-        print(f"Error sending message: {e}")
+        print(f"Error: {e}")
 
-def get_awwwards():
+def get_awwwards_rss():
     items = []
     try:
-        r = requests.get("https://www.awwwards.com/websites/", headers={"User-Agent": "Mozilla/5.0"})
-        soup = BeautifulSoup(r.text, 'html.parser')
-        for card in soup.select('.item--profile')[:3]:
-            link_tag = card.find('a', class_='js-titles')
-            if link_tag:
-                link = "https://www.awwwards.com" + link_tag['href']
-                title = link_tag.get_text(strip=True)
-                items.append({"title": title, "link": link, "source": "Awwwards", "niche": "General"})
+        feed = feedparser.parse("https://www.awwwards.com/website-rss/")
+        for entry in feed.entries[:3]:
+            items.append({
+                "title": entry.title,
+                "link": entry.link,
+                "source": "Awwwards",
+                "niche": "General"
+            })
     except: pass
     return items
 
-def get_siteinspire():
+def get_siteinspire_rss():
     items = []
     try:
-        r = requests.get("https://www.siteinspire.com/", headers={"User-Agent": "Mozilla/5.0"})
-        soup = BeautifulSoup(r.text, 'html.parser')
-        for card in soup.select('.work-item')[:3]:
-            link_tag = card.find('a')
-            if link_tag:
-                link = "https://www.siteinspire.com" + link_tag['href']
-                title = card.select_one('.work-title').get_text(strip=True) if card.select_one('.work-title') else "Siteinspire Design"
-                items.append({"title": title, "link": link, "source": "Siteinspire", "niche": "Portfolio"})
-    except: pass
-    return items
-
-def get_httpster():
-    items = []
-    try:
-        r = requests.get("https://httpster.net/", headers={"User-Agent": "Mozilla/5.0"})
-        soup = BeautifulSoup(r.text, 'html.parser')
-        for card in soup.select('.project')[:2]:
-            link_tag = card.find('a')
-            if link_tag:
-                link = link_tag['href']
-                title = card.select_one('.project-name').get_text(strip=True) if card.select_one('.project-name') else "Httpster Project"
-                items.append({"title": title, "link": link, "source": "Httpster", "niche": "Trendy"})
+        feed = feedparser.parse("https://www.siteinspire.com/rss/")
+        for entry in feed.entries[:3]:
+            items.append({
+                "title": entry.title,
+                "link": entry.link,
+                "source": "Siteinspire",
+                "niche": "Portfolio"
+            })
     except: pass
     return items
 
@@ -74,12 +60,11 @@ def main():
     digest = []
     niches_used = set()
     
-    all_sources = get_awwwards() + get_siteinspire() + get_httpster()
+    all_sources = get_awwwards_rss() + get_siteinspire_rss()
     
     for item in all_sources:
-        if item['link'] not in seen and item['niche'] not in niches_used and len(digest) < 5:
+        if item['link'] not in seen and len(digest) < 5:
             seen.add(item['link'])
-            niches_used.add(item['niche'])
             digest.append(item)
             
     if digest:
@@ -90,7 +75,7 @@ def main():
         
         send_message(message)
         save_seen(seen)
-        print("Digest sent successfully.")
+        print(f"Sent {len(digest)} designs.")
     else:
         print("No new unique designs found today.")
 
